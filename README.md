@@ -1,9 +1,12 @@
 #Алгоритм Флойда-Воршала
 
 1. Якщо початковий алгоритм Воршела призначався лише для перевірки зв'язності (чи можна взагалі дійти з A у Б), то модифікація Флойда (Floyd) додала можливість рахувати «вагу» (довжину) цього шляху, (тому часто згадується як алгоритм Флойда — Воршелла) — це класичний метод у теорії графів для пошуку найкоротших шляхів між усіма парами вершин у зваженому графі.
+
 **ВХІД**: Зважений граф із V вершин, представлений у вигляді квадратної матриці суміжності розміром null, де значення на перетині i-рядка та j-стовпця є вагою ребра від i до j. Відсутність прямого ребра позначається як нескінченність (null), а діагональні елементи (відстань від вершини до неї самої) дорівнюють 0 - безкоштовний перехід.
+
 **ВИХІД**: Матриця найкоротших відстаней розміром n*n, де елемент (i, j) містить мінімальну вартість шляху від вершини i до вершини j.
 Алгоритм Флойда-Воршала знаходить оптимальні маршрути між усіма можливими парами вершин за один прохід. Він коректно працює з ребрами, що мають від'ємну вагу і більше того, алгоритм дозволяє виявляти цикли з від'ємною вагою (якщо після виконання алгоритму на головній діагоналі матриці d[i][i] з'являються від'ємні значення, це свідчить про наявність такого циклу)
+
 Отже *мета*: знайти найкоротші відстані між усіма парами вершин, (тобто для кожної пари (i,j)).
 
 2. [Посилання на онлайн-компілятор](https://onlinegdb.com/y1g3JiBBKM)
@@ -32,3 +35,174 @@ A[i][j] = A[i][j], OR (A[i][k] AND A[k][j]).
 Просторова
 O(V2).
 Нам потрібно зберігати матрицю відстаней розміром V×V. Навіть якщо ми додаємо матрицю для відновлення шляхів, це все одно 2×V2, що в нотаціях Ландау залишається O(V2).
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <limits.h>
+
+// Максимальна кількість вершин у графі
+#define MAX_N 100
+// Значення, яке представляє «нескінченність» для відсутніх ребер
+#define INF 1000000000
+
+// Виводить матрицю відстаней у заданий потік (консоль або файл).
+void printDistance(FILE *out, int n, int dist[MAX_N][MAX_N]) {
+    fprintf(out, "Матриця найкоротших відстаней:\n");
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (dist[i][j] >= INF / 2) {
+                fprintf(out, "  INF");
+            } else {
+                fprintf(out, "%5d", dist[i][j]);
+            }
+        }
+        fprintf(out, "\n");
+    }
+}
+
+void printPath(FILE *out, int u, int v, int next[MAX_N][MAX_N]) {
+    if (next[u][v] == -1) {
+        fprintf(out, "Шляху немає");
+        return;
+    }
+    int current = u;
+    fprintf(out, "%d", u + 1);
+    while (current != v) {
+        int next_vertex = next[current][v];
+        if (next_vertex == -1) {
+            fprintf(out, " -> [Помилка шляху]");
+            break;
+        }
+        current = next_vertex;
+        fprintf(out, " -> %d", current + 1);
+    }
+}
+
+// Алгоритм Флойда-Воршала: знаходить найкоротші відстані між усіма парами вершин.
+// Також оновлює таблицю next для реконструкції шляхів.
+void floydWarshall(int n, int dist[MAX_N][MAX_N], int next[MAX_N][MAX_N]) {
+    for (int k = 0; k < n; k++) {
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                // Перевіряємо, чи існує шлях i -> k і k -> j, а також чи дає шлях через k кращу відстань.
+                if (dist[i][k] < INF && dist[k][j] < INF && dist[i][j] > dist[i][k] + dist[k][j]) {
+                    dist[i][j] = dist[i][k] + dist[k][j];
+                    next[i][j] = next[i][k];
+                }
+            }
+        }
+    }
+}
+
+// Завантажує граф з текстового файлу.
+// Очікує, що першим числом йде кількість вершин, а далі йде матриця ваг ребер.
+// Для відсутнього ребра використовуються INF.
+int loadGraph(const char *filename, int *n, int dist[MAX_N][MAX_N], int next[MAX_N][MAX_N]) {
+    FILE *in = fopen(filename, "r");
+    if (!in) {
+        return 0;
+    }
+
+    if (fscanf(in, "%d", n) != 1 || *n <= 0 || *n > MAX_N) {
+        fclose(in);
+        return 0;
+    }
+
+    for (int i = 0; i < *n; i++) {
+        for (int j = 0; j < *n; j++) {
+            char token[20]; // Буфер для зчитування слова/числа з файлу
+            if (fscanf(in, "%19s", token) != 1) {
+                fclose(in);
+                return 0;
+            }
+            if (i == j) {
+                dist[i][j] = 0; 
+            } 
+            // Перевіряємо, чи введено "inf" або "INF"
+            else if (strcmp(token, "inf") == 0 || strcmp(token, "INF") == 0 || strcmp(token, "-1") == 0) {
+                dist[i][j] = INF; 
+            } 
+            else {
+                // Якщо це не "inf", конвертуємо текст у звичайне число
+                dist[i][j] = atoi(token); 
+            }
+            
+            next[i][j] = (dist[i][j] < INF && i != j) ? j : -1;
+        }
+    }
+
+    fclose(in);
+    return 1;
+}
+
+// Головна функція програми.
+// Програма приймає ім'я вхідного файлу і необов'язково ім'я вихідного файлу.
+// Якщо вихідний файл не вказаний, результати виводяться на екран.
+int main(int argc, char *argv[]) {
+    // Якщо аргумент не передано в консолі, автоматично відкриваємо "Matrix.txt"
+    const char *inputFile = (argc >= 2) ? argv[1] : "Matrix.txt";
+    const char *outputFile = (argc >= 3) ? argv[2] : NULL;
+    FILE *out = stdout;
+
+    if (outputFile) {
+        out = fopen(outputFile, "w");
+        if (!out) {
+            fprintf(stderr, "Не вдалося відкрити вихідний файл '%s'\n", outputFile);
+            return 1;
+        }
+    }
+
+    int n;
+    int dist[MAX_N][MAX_N];
+    int next[MAX_N][MAX_N];
+
+    if (!loadGraph(inputFile, &n, dist, next)) {
+        fprintf(stderr, "Помилка читання файлу '%s' або невірний формат даних.\n", inputFile);
+        fprintf(stderr, "Переконайся, що файл з назвою '%s' лежить у папці з проєктом.\n", inputFile);
+        if (out != stdout) fclose(out);
+        return 1;
+    }
+    
+    // Запуск алгоритму
+    floydWarshall(n, dist, next);
+    
+    // Спочатку перевіряємо, чи є від'ємні цикли
+    int hasNegativeCycle = 0;
+    for (int i = 0; i < n; i++) {
+        if (dist[i][i] < 0) {
+            hasNegativeCycle = 1;
+            break; 
+        }
+    }
+
+    // Якщо є цикл - виводимо попередження
+    if (hasNegativeCycle) {
+        fprintf(stderr, "Увага: Граф містить від'ємний цикл! Результати найкоротших шляхів некоректні.\n");
+    } 
+    // Якщо циклу немає - виводимо матрицю і маршрути
+    else {
+        printDistance(out, n, dist);
+        fprintf(out, "\nМінімальні шляхи між вершинами:\n");
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                if (i == j) {
+                    continue;
+                }
+                fprintf(out, "%d -> %d: ", i + 1, j + 1);
+                if (dist[i][j] >= INF / 2) {
+                    fprintf(out, "немає шляху\n");
+                } else {
+                    printPath(out, i, j, next);
+                    fprintf(out, " (довжина %d)\n", dist[i][j]);
+                }
+            }
+        }
+    }
+
+    if (out != stdout) {
+        fclose(out);
+    }
+
+    return 0;
+}
